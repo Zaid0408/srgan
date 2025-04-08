@@ -19,7 +19,7 @@ def train(args):
     
     transform  = transforms.Compose([crop(args.scale, args.patch_size), augmentation()])
     dataset = mydata(GT_path = args.GT_path, LR_path = args.LR_path, in_memory = args.in_memory, transform = transform)
-    loader = DataLoader(dataset, batch_size = args.batch_size, shuffle = True, num_workers = args.num_workers)
+    loader = DataLoader(dataset, batch_size = args.batch_size, shuffle = True, num_workers = args.num_workers,drop_last=True)
     
     generator = Generator(img_feat = 3, n_feats = 64, kernel_size = 3, num_block = args.res_num, scale=args.scale)
     
@@ -58,8 +58,8 @@ def train(args):
             print(loss.item())
             print('=========')
         
-        if pre_epoch % 100 ==0:
-            torch.save(generator.state_dict(), './model/pre_trained_model_%03d.pt'%pre_epoch)
+        # if pre_epoch % 250 ==0:
+            # torch.save(generator.state_dict(), './model/pre_trained_model_%03d.pt'%pre_epoch)
 
         if pre_epoch == args.pre_train_epoch - 1:  # Save final pre-trained model at epoch 299
             torch.save(generator.state_dict(), './model/pre_train_generator_final.pt')
@@ -81,6 +81,8 @@ def train(args):
     tv_loss = TVLoss()
     real_label = torch.ones((args.batch_size, 1)).to(device)
     fake_label = torch.zeros((args.batch_size, 1)).to(device)
+    # real_label = torch.ones_like(real_prob).to(device)
+    # fake_label = torch.zeros_like(fake_prob).to(device)
     
     while fine_epoch < args.fine_train_epoch:
         
@@ -94,6 +96,12 @@ def train(args):
             output, _ = generator(lr)
             fake_prob = discriminator(output)
             real_prob = discriminator(gt)
+
+            if fine_epoch % 10 == 0:
+              print("Discriminator real output shape:", real_prob.shape)  # Debug
+              print("Real label shape:", real_label.shape)  # Debug
+
+
             
             d_loss_real = cross_ent(real_prob, real_label)
             d_loss_fake = cross_ent(fake_prob, fake_label)
@@ -142,8 +150,6 @@ def train(args):
             torch.save(generator.state_dict(), './model/SRGAN_generator_final.pt')
             torch.save(discriminator.state_dict(), './model/SRGAN_discriminator_final.pt')
 
-
-# In[ ]:
 
 def test(args):
     

@@ -67,8 +67,9 @@ class Discriminator(nn.Module):
         x = self.conv01(x)
         x = self.conv02(x)
         x = self.body(x)        
-        x = x.view(-1, self.linear_size)
+        # x = x.view(-1, self.linear_size)
+        x = x.view(x.size(0), -1)  # Flatten to [batch_size, features]
         x = self.tail(x)
-        
-        return x
+        # return x
+        return torch.sigmoid(x)
 
