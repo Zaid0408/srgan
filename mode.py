@@ -102,8 +102,8 @@ def train(args):
             print(loss.item())
             print('=========')
         
-        # if pre_epoch % 250 ==0:
-            # torch.save(generator.state_dict(), './model/pre_trained_model_%03d.pt'%pre_epoch)
+        if pre_epoch % 250 ==0:
+            torch.save(generator.state_dict(), './model/pre_trained_model_%03d.pt'%pre_epoch)
 
         if pre_epoch == args.pre_train_epoch - 1:  # Save final pre-trained model at epoch 299
             torch.save(generator.state_dict(), './model/pre_train_generator_final.pt')
