@@ -25,7 +25,7 @@ def train(args):
     
     
     if args.fine_tuning:        
-        generator.load_state_dict(torch.load(args.generator_path))
+        generator.load_state_dict(torch.load(args.generator_path,weights_only=True))
         print("pre-trained model is loaded")
         print("path : %s"%(args.generator_path))
         
