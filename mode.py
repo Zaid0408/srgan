@@ -12,15 +12,59 @@ from PIL import Image
 from skimage.color import rgb2ycbcr
 from skimage.metrics import peak_signal_noise_ratio
 
+class EnsureCHW(object):
+    """Guarantee (C,H,W) format for all tensors"""
+    def __call__(self, sample):
+        lr, gt = sample['LR'], sample['GT']
+        
+        # Fix transposed images
+        if lr.shape[0] == 0 or lr.shape[1] == 0:
+            lr = np.ascontiguousarray(lr.transpose(1, 0, 2))
+        if gt.shape[0] == 0 or gt.shape[1] == 0:
+            gt = np.ascontiguousarray(gt.transpose(1, 0, 2))
+            
+        # Final validation
+        assert lr.shape[2] == 3 and gt.shape[2] == 3, "Channels must be last"
+        return {'LR': lr, 'GT': gt}
+
+def safe_collate(batch):
+    """Handle bad samples in batch"""
+    batch = [b for b in batch if b is not None]
+    if len(batch) == 0:
+        return None
+        
+    # Manual collation to catch shape issues
+    try:
+        lr = torch.stack([torch.FloatTensor(b['LR']) for b in batch])
+        gt = torch.stack([torch.FloatTensor(b['GT']) for b in batch])
+        return {'LR': lr, 'GT': gt}
+    except RuntimeError as e:
+        print(f"Batch error: {e}")
+        print("Sample shapes:", [b['LR'].shape for b in batch])
+        return None
+
 
 def train(args):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    transform  = transforms.Compose([crop(args.scale, args.patch_size), augmentation()])
+    # transform  = transforms.Compose([crop(args.scale, args.patch_size), augmentation()])
+    transform = transforms.Compose([
+    crop(args.scale, args.patch_size),  # Ensures consistent patch sizes
+    augmentation(),                     # Only safe augmentations
+    EnsureCHW(),                        # NEW: Force (C,H,W) format
+    ])
     dataset = mydata(GT_path = args.GT_path, LR_path = args.LR_path, in_memory = args.in_memory, transform = transform)
-    loader = DataLoader(dataset, batch_size = args.batch_size, shuffle = True, num_workers = args.num_workers,drop_last=True)
-    
+    # loader = DataLoader(dataset, batch_size = args.batch_size, shuffle = True, num_workers = args.num_workers,drop_last=True)
+    loader = DataLoader(
+    dataset,
+    batch_size=args.batch_size,
+    shuffle=True,
+    num_workers=min(4, args.num_workers),  # Limit workers for stability
+    pin_memory=True,
+    drop_last=True,
+    collate_fn=safe_collate  # NEW: Handle bad samples
+    )
     generator = Generator(img_feat = 3, n_feats = 64, kernel_size = 3, num_block = args.res_num, scale=args.scale)
     
     
